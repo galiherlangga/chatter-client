@@ -16,13 +16,17 @@ const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
 const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
-if (!privateKey || !clientEmail || !folderId) {
-  if (process.env.NODE_ENV !== 'development') {
+const missingEnvVars = [];
+if (!privateKey) missingEnvVars.push('GOOGLE_PRIVATE_KEY');
+if (!clientEmail) missingEnvVars.push('GOOGLE_CLIENT_EMAIL');
+if (!folderId) missingEnvVars.push('GOOGLE_DRIVE_FOLDER_ID');
+
+
+if (missingEnvVars.length > 0 && process.env.NODE_ENV !== 'development') {
     // Don't throw during development build time
     throw new Error(
-      'Google Drive environment variables are not properly configured.'
+      `Google Drive environment variables are not properly configured. Missing: ${missingEnvVars.join(', ')}`
     );
-  }
 }
 
 const auth = new google.auth.GoogleAuth({
@@ -68,7 +72,8 @@ async function getFileContent(fileId: string): Promise<string> {
           reject(new Error(`Failed to read content of file ${fileId}.`));
         });
     });
-  } catch (error) {
+  } catch (error)
+ {
     console.error(`Error getting content for file ${fileId}:`, error);
     throw new Error(`Failed to get content for file ${fileId}.`);
   }
@@ -82,13 +87,14 @@ async function getFileContent(fileId: string): Promise<string> {
 export async function getKnowledgeBase(): Promise<string> {
   console.log('Fetching knowledge base from Google Drive...');
 
-  if (!folderId) {
-    console.error('GOOGLE_DRIVE_FOLDER_ID is not set.');
-    return 'Error: Google Drive folder ID is not configured.';
+  if (missingEnvVars.length > 0) {
+    const errorMessage = `The following Google Drive environment variables are not configured: ${missingEnvVars.join(', ')}. Please set them in your .env file and restart the development server.`;
+    console.error(errorMessage);
+    return `Error: ${errorMessage}`;
   }
 
   try {
-    const files = await listFiles(folderId);
+    const files = await listFiles(folderId!);
 
     if (files.length === 0) {
       console.log('No text files found in the specified Google Drive folder.');
