@@ -12,23 +12,20 @@ import type {drive_v3} from 'googleapis/build/src/apis/drive/v3';
 import {Readable} from 'stream';
 
 function getGoogleDriveService() {
-  console.log('Initializing Google Drive service...');
   const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
 
-  const missingEnvVars = [];
-  if (!privateKey) missingEnvVars.push('GOOGLE_PRIVATE_KEY');
-  if (!clientEmail) missingEnvVars.push('GOOGLE_CLIENT_EMAIL');
-
-  if (missingEnvVars.length > 0) {
-    const errorMessage = `The following Google Drive environment variables are not configured: ${missingEnvVars.join(
+  if (!privateKey || !clientEmail) {
+    const missingVars = [];
+    if (!privateKey) missingVars.push('GOOGLE_PRIVATE_KEY');
+    if (!clientEmail) missingVars.push('GOOGLE_CLIENT_EMAIL');
+    const errorMessage = `The following Google Drive environment variables are not configured: ${missingVars.join(
       ', '
     )}. Please set them in your .env file and restart the development server.`;
     console.error(errorMessage);
     throw new Error(errorMessage);
   }
 
-  console.log('Google Drive credentials found.');
   const auth = new google.auth.GoogleAuth({
     credentials: {
       private_key: privateKey,
@@ -46,13 +43,14 @@ async function listFiles(
 ): Promise<drive_v3.Schema$File[]> {
   try {
     console.log(`Listing files from Google Drive folder: ${folderId}`);
+    const query = `'${folderId}' in parents and (mimeType='text/plain' or mimeType='application/vnd.google-apps.document') and trashed=false`;
     const res = await drive.files.list({
-      q: `'${folderId}' in parents and mimeType='text/plain' and trashed = false`,
-      fields: 'files(id, name)',
+      q: query,
+      fields: 'files(id, name, mimeType)',
       pageSize: 100,
     });
     const files = res.data.files || [];
-    console.log(`Found ${files.length} text files.`);
+    console.log(`Found ${files.length} text files or Google Docs.`);
     return files;
   } catch (error) {
     console.error('Error listing files from Google Drive:', error);
@@ -62,14 +60,24 @@ async function listFiles(
 
 async function getFileContent(
   drive: drive_v3.Drive,
-  fileId: string
+  fileId: string,
+  mimeType: string
 ): Promise<string> {
   try {
-    console.log(`Fetching content for file ID: ${fileId}`);
-    const res: GaxiosResponse<Readable> = await drive.files.get(
-      {fileId, alt: 'media'},
-      {responseType: 'stream'}
-    );
+    console.log(`Fetching content for file ID: ${fileId} (MIME type: ${mimeType})`);
+    
+    let res: GaxiosResponse<Readable>;
+    if (mimeType === 'application/vnd.google-apps.document') {
+      res = await drive.files.export(
+        { fileId, mimeType: 'text/plain' },
+        { responseType: 'stream' }
+      );
+    } else {
+      res = await drive.files.get(
+        { fileId, alt: 'media' },
+        { responseType: 'stream' }
+      );
+    }
 
     return new Promise((resolve, reject) => {
       let content = '';
@@ -110,14 +118,14 @@ export async function getKnowledgeBase(): Promise<string> {
     const files = await listFiles(drive, folderId);
 
     if (files.length === 0) {
-      console.log('No text files found in the specified Google Drive folder.');
+      console.log('No text files or Google Docs found in the specified Google Drive folder.');
       return 'No knowledge base documents found.';
     }
 
     const fileContents = await Promise.all(
       files.map(async file => {
-        if (file.id && file.name) {
-          const content = await getFileContent(drive, file.id);
+        if (file.id && file.name && file.mimeType) {
+          const content = await getFileContent(drive, file.id, file.mimeType);
           return `Document: ${file.name}\nContent:\n${content}\n---`;
         }
         return '';
