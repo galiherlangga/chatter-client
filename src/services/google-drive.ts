@@ -12,6 +12,7 @@ import type {drive_v3} from 'googleapis/build/src/apis/drive/v3';
 import {Readable} from 'stream';
 
 function getGoogleDriveService() {
+  console.log('Initializing Google Drive service...');
   const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
 
@@ -20,13 +21,14 @@ function getGoogleDriveService() {
   if (!clientEmail) missingEnvVars.push('GOOGLE_CLIENT_EMAIL');
 
   if (missingEnvVars.length > 0) {
-    throw new Error(
-      `The following Google Drive environment variables are not configured: ${missingEnvVars.join(
-        ', '
-      )}. Please set them in your .env file and restart the development server.`
-    );
+    const errorMessage = `The following Google Drive environment variables are not configured: ${missingEnvVars.join(
+      ', '
+    )}. Please set them in your .env file and restart the development server.`;
+    console.error(errorMessage);
+    throw new Error(errorMessage);
   }
 
+  console.log('Google Drive credentials found.');
   const auth = new google.auth.GoogleAuth({
     credentials: {
       private_key: privateKey,
@@ -43,12 +45,15 @@ async function listFiles(
   folderId: string
 ): Promise<drive_v3.Schema$File[]> {
   try {
+    console.log(`Listing files from Google Drive folder: ${folderId}`);
     const res = await drive.files.list({
       q: `'${folderId}' in parents and mimeType='text/plain' and trashed = false`,
       fields: 'files(id, name)',
       pageSize: 100,
     });
-    return res.data.files || [];
+    const files = res.data.files || [];
+    console.log(`Found ${files.length} text files.`);
+    return files;
   } catch (error) {
     console.error('Error listing files from Google Drive:', error);
     throw new Error('Failed to list files from Google Drive.');
@@ -60,6 +65,7 @@ async function getFileContent(
   fileId: string
 ): Promise<string> {
   try {
+    console.log(`Fetching content for file ID: ${fileId}`);
     const res: GaxiosResponse<Readable> = await drive.files.get(
       {fileId, alt: 'media'},
       {responseType: 'stream'}
@@ -69,7 +75,10 @@ async function getFileContent(
       let content = '';
       res.data
         .on('data', chunk => (content += chunk))
-        .on('end', () => resolve(content))
+        .on('end', () => {
+          console.log(`Successfully streamed content for file ID: ${fileId}`);
+          resolve(content);
+        })
         .on('error', err => {
           console.error(`Error streaming content for file ${fileId}:`, err);
           reject(new Error(`Failed to read content of file ${fileId}.`));
