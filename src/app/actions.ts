@@ -2,6 +2,7 @@
 
 import { moderateChatContent } from "@/ai/flows/moderate-chat-content";
 import { generateResponseFromDrive } from "@/ai/flows/generate-response-from-drive";
+import { getKnowledgeBase } from "@/services/google-drive";
 
 export async function handleSendMessage(message: string): Promise<{ response?: string; error?: string }> {
   try {
@@ -12,8 +13,7 @@ export async function handleSendMessage(message: string): Promise<{ response?: s
       return { error: `Message flagged as harmful. ${moderationResult.feedback}` };
     }
     
-    // Using mock data for Google Drive context as a real integration is not available.
-    const driveData = "Your knowledge base indicates: ChatterClient is a cutting-edge chat application designed for real-time communication. It leverages GenAI for content moderation and generating context-aware responses from a knowledge base. The UI is built with Next.js and styled with TailwindCSS, featuring a calming blue color palette. The primary font is Inter.";
+    const driveData = await getKnowledgeBase();
 
     const responseResult = await generateResponseFromDrive({
       query: message,
@@ -24,6 +24,8 @@ export async function handleSendMessage(message: string): Promise<{ response?: s
 
   } catch (e) {
     console.error(e);
-    return { error: 'An unexpected error occurred while processing your message.' };
+    // Provide more specific error messages if possible
+    const errorMessage = e instanceof Error ? e.message : 'An unexpected error occurred.';
+    return { error: `An unexpected error occurred while processing your message: ${errorMessage}` };
   }
 }
