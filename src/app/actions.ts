@@ -15,6 +15,11 @@ export async function handleSendMessage(message: string): Promise<{ response?: s
     
     const driveData = await getKnowledgeBase();
 
+    if (driveData.startsWith('Error:')) {
+      console.error('Failed to get knowledge base from Google Drive:', driveData);
+      return { error: `I am having trouble accessing the knowledge base from Google Drive. Please ensure it's configured correctly. Details: ${driveData}` };
+    }
+
     const responseResult = await generateResponseFromDrive({
       query: message,
       driveData,
