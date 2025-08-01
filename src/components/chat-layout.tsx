@@ -8,14 +8,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { handleSendMessage } from '@/app/actions';
-import { ChatMessage } from './chat-message';
+import { ChatMessage, type Message } from './chat-message';
 import { LoadingIndicator } from './loading-indicator';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-}
 
 export default function ChatLayout() {
   const [messages, setMessages] = useState<Message[]>([
@@ -57,7 +51,12 @@ export default function ChatLayout() {
         });
         setMessages((prev) => prev.filter((msg) => msg.id !== userMessageId));
       } else if (result.response) {
-        const botMessage: Message = { id: crypto.randomUUID(), role: 'assistant', content: result.response };
+        const botMessage: Message = { 
+          id: crypto.randomUUID(), 
+          role: 'assistant', 
+          content: result.response,
+          imageUrl: result.imageUrl,
+        };
         setMessages((prev) => [...prev, botMessage]);
       }
     } catch (error) {

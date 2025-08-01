@@ -3,7 +3,7 @@
 /**
  * @fileOverview A service for interacting with Google Drive.
  *
- * - getKnowledgeBase - Fetches and consolidates the content of all text files from a specified Google Drive folder.
+ * - getKnowledgeBase - Fetches and consolidates the content of all text files and images from a specified Google Drive folder and its sub-folders.
  */
 
 import {GaxiosResponse} from 'gaxios';
@@ -11,19 +11,20 @@ import {google} from 'googleapis';
 import type {drive_v3} from 'googleapis/build/src/apis/drive/v3';
 import {Readable} from 'stream';
 
+// Interface for the structured knowledge base
+export interface KnowledgeBase {
+  documents: string;
+  images: Record<string, drive_v3.Schema$File[]>;
+}
+
 function getGoogleDriveService() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
   const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
 
   if (!privateKey || !clientEmail) {
-    const missingVars = [];
-    if (!privateKey) missingVars.push('GOOGLE_PRIVATE_KEY');
-    if (!clientEmail) missingVars.push('GOOGLE_CLIENT_EMAIL');
-    const errorMessage = `The following Google Drive environment variables are not configured: ${missingVars.join(
-      ', '
-    )}. Please set them in your .env file and restart the development server.`;
-    console.error(errorMessage);
-    throw new Error(errorMessage);
+    throw new Error(
+      'Google Drive credentials (GOOGLE_PRIVATE_KEY, GOOGLE_CLIENT_EMAIL) are not configured.'
+    );
   }
 
   const auth = new google.auth.GoogleAuth({
@@ -37,24 +38,23 @@ function getGoogleDriveService() {
   return google.drive({version: 'v3', auth});
 }
 
-async function listFiles(
+async function listFilesAndFolders(
   drive: drive_v3.Drive,
   folderId: string
 ): Promise<drive_v3.Schema$File[]> {
   try {
-    console.log(`Listing files from Google Drive folder: ${folderId}`);
-    const query = `'${folderId}' in parents and (mimeType='text/plain' or mimeType='application/vnd.google-apps.document') and trashed=false`;
+    console.log(`Listing all items from Google Drive folder: ${folderId}`);
     const res = await drive.files.list({
-      q: query,
-      fields: 'files(id, name, mimeType)',
-      pageSize: 100,
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: 'files(id, name, mimeType, webViewLink, thumbnailLink)',
+      pageSize: 200, // Increased page size
     });
-    const files = res.data.files || [];
-    console.log(`Found ${files.length} text files or Google Docs.`);
-    return files;
+    const items = res.data.files || [];
+    console.log(`Found ${items.length} items (files and folders).`);
+    return items;
   } catch (error) {
-    console.error('Error listing files from Google Drive:', error);
-    throw new Error('Failed to list files from Google Drive.');
+    console.error('Error listing files and folders:', error);
+    throw new Error('Failed to list items from Google Drive.');
   }
 }
 
@@ -99,11 +99,11 @@ async function getFileContent(
 }
 
 /**
- * Fetches all .txt files from the specified Google Drive folder,
- * reads their content, and returns it as a single string.
- * @returns {Promise<string>} A promise that resolves to the combined content of all knowledge base files.
+ * Fetches all documents and images from the specified Google Drive folder,
+ * organizing them into a structured knowledge base.
+ * @returns {Promise<KnowledgeBase | string>} A promise that resolves to the knowledge base object or an error string.
  */
-export async function getKnowledgeBase(): Promise<string> {
+export async function getKnowledgeBase(): Promise<KnowledgeBase | string> {
   console.log('Fetching knowledge base from Google Drive...');
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
@@ -115,25 +115,60 @@ export async function getKnowledgeBase(): Promise<string> {
 
   try {
     const drive = getGoogleDriveService();
-    const files = await listFiles(drive, folderId);
+    const allItems = await listFilesAndFolders(drive, folderId);
 
-    if (files.length === 0) {
-      console.log('No text files or Google Docs found in the specified Google Drive folder.');
+    const documents = allItems.filter(
+      (item) =>
+        item.mimeType === 'text/plain' ||
+        item.mimeType === 'application/vnd.google-apps.document'
+    );
+    
+    const folders = allItems.filter(
+      (item) => item.mimeType === 'application/vnd.google-apps.folder'
+    );
+
+    if (documents.length === 0) {
+      console.log('No text files or Google Docs found in the root of the specified Google Drive folder.');
       return 'I am sorry, I cannot answer this question based on the provided Google Drive data, as no relevant documents were found.';
     }
 
-    const fileContents = await Promise.all(
-      files.map(async file => {
-        if (file.id && file.name && file.mimeType) {
-          const content = await getFileContent(drive, file.id, file.mimeType);
-          return `Document: ${file.name}\nContent:\n${content}\n---`;
+    // Fetch document contents
+    const docContents = await Promise.all(
+      documents.map(async (doc) => {
+        if (doc.id && doc.name && doc.mimeType) {
+          const content = await getFileContent(drive, doc.id, doc.mimeType);
+          return `Document: ${doc.name}\nContent:\n${content}\n---`;
         }
         return '';
       })
     );
 
-    console.log(`Successfully fetched ${files.length} knowledge base files.`);
-    return fileContents.join('\n');
+    // Fetch images from sub-folders
+    const imageMap: Record<string, drive_v3.Schema$File[]> = {};
+    for (const folder of folders) {
+      if (folder.id && folder.name) {
+        console.log(`Fetching images from sub-folder: ${folder.name}`);
+        const imageFiles = await drive.files.list({
+          q: `'${folder.id}' in parents and (mimeType='image/jpeg' or mimeType='image/png') and trashed=false`,
+          fields: 'files(id, name, webViewLink, thumbnailLink)',
+          pageSize: 50,
+        });
+        if (imageFiles.data.files && imageFiles.data.files.length > 0) {
+          imageMap[folder.name] = imageFiles.data.files;
+          console.log(`Found ${imageFiles.data.files.length} images in ${folder.name}.`);
+        }
+      }
+    }
+    
+    console.log(`Successfully fetched ${documents.length} documents.`);
+    if (Object.keys(imageMap).length > 0) {
+      console.log(`Successfully mapped images from ${Object.keys(imageMap).length} sub-folders.`);
+    }
+
+    return {
+      documents: docContents.join('\n'),
+      images: imageMap,
+    };
   } catch (error) {
     console.error('An error occurred while building the knowledge base:', error);
     const errorMessage =

@@ -1,14 +1,16 @@
 'use client';
 
 import { Bot, User } from "lucide-react";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-interface Message {
+export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  imageUrl?: string;
 }
 
 export function ChatMessage({ message }: { message: Message }) {
@@ -29,12 +31,23 @@ export function ChatMessage({ message }: { message: Message }) {
       )}
       <div
         className={cn(
-          'max-w-[75%] p-3 rounded-2xl shadow-sm',
+          'max-w-[75%] p-3 rounded-2xl shadow-sm space-y-2',
           isUser
             ? 'bg-primary text-primary-foreground rounded-br-none'
             : 'bg-card border rounded-bl-none'
         )}
       >
+        {message.imageUrl && (
+            <div className="relative aspect-video rounded-lg overflow-hidden border">
+              <Image
+                src={message.imageUrl}
+                alt="Related image"
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+        )}
         <div className="text-sm prose prose-sm max-w-none text-current prose-p:my-0 prose-ul:my-2 prose-ol:my-2">
           <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
