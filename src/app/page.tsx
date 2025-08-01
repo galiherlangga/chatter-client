@@ -1,9 +1,11 @@
-import ChatPageLoader from './chat-page-loader';
+'use client';
+
+import ChatLayout from '@/components/chat-layout';
 
 export default function Home() {
   return (
     <main>
-      <ChatPageLoader />
+      <ChatLayout />
     </main>
   );
 }
