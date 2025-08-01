@@ -1,6 +1,7 @@
 'use client';
 
 import { Bot, User } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
@@ -34,7 +35,9 @@ export function ChatMessage({ message }: { message: Message }) {
             : 'bg-card border rounded-bl-none'
         )}
       >
-        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        <div className="text-sm prose prose-sm max-w-none text-current prose-p:my-0 prose-ul:my-2 prose-ol:my-2">
+          <ReactMarkdown>{message.content}</ReactMarkdown>
+        </div>
       </div>
       {isUser && (
         <Avatar className="w-8 h-8 border">

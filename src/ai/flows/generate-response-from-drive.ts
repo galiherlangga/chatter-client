@@ -38,6 +38,8 @@ const generateResponseFromDrivePrompt = ai.definePrompt({
   output: {schema: GenerateResponseFromDriveOutputSchema},
   prompt: `You are a helpful chat assistant that can answer questions based on data from Google Drive.
 
+  Format your response using Markdown. If the answer includes a list or steps, use bullet points.
+
   Use the following data from Google Drive as context to answer the user's query.
 
   Google Drive Data:
