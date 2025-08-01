@@ -1,9 +1,9 @@
-import ChatLayout from '@/components/chat-layout';
+import ChatPageLoader from './chat-page-loader';
 
 export default function Home() {
   return (
     <main>
-      <ChatLayout />
+      <ChatPageLoader />
     </main>
   );
 }

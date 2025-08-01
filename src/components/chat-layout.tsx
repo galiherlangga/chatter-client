@@ -46,7 +46,7 @@ export default function ChatLayout() {
       if (result.error) {
         toast({
           variant: 'destructive',
-          title: 'Moderation Warning',
+          title: 'Error',
           description: result.error,
         });
         setMessages((prev) => prev.filter((msg) => msg.id !== userMessageId));
