@@ -55,7 +55,6 @@ export default function ChatLayout() {
           id: crypto.randomUUID(), 
           role: 'assistant', 
           content: result.response,
-          imageUrl: result.imageUrl,
         };
         setMessages((prev) => [...prev, botMessage]);
       }

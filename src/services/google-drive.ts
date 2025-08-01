@@ -3,19 +3,13 @@
 /**
  * @fileOverview A service for interacting with Google Drive.
  *
- * - getKnowledgeBase - Fetches and consolidates the content of all text files and images from a specified Google Drive folder and its sub-folders.
+ * - getKnowledgeBase - Fetches and consolidates the content of all text files from a specified Google Drive folder.
  */
 
 import {GaxiosResponse} from 'gaxios';
 import {google} from 'googleapis';
 import type {drive_v3} from 'googleapis/build/src/apis/drive/v3';
 import {Readable} from 'stream';
-
-// Interface for the structured knowledge base
-export interface KnowledgeBase {
-  documents: string;
-  images: Record<string, drive_v3.Schema$File[]>;
-}
 
 function getGoogleDriveService() {
   const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
@@ -38,23 +32,23 @@ function getGoogleDriveService() {
   return google.drive({version: 'v3', auth});
 }
 
-async function listFilesAndFolders(
+async function listFiles(
   drive: drive_v3.Drive,
   folderId: string
 ): Promise<drive_v3.Schema$File[]> {
   try {
-    console.log(`Listing all items from Google Drive folder: ${folderId}`);
+    console.log(`Listing files from Google Drive folder: ${folderId}`);
     const res = await drive.files.list({
-      q: `'${folderId}' in parents and trashed=false`,
-      fields: 'files(id, name, mimeType, webViewLink, thumbnailLink)',
-      pageSize: 200, // Increased page size
+      q: `'${folderId}' in parents and (mimeType='text/plain' or mimeType='application/vnd.google-apps.document') and trashed=false`,
+      fields: 'files(id, name, mimeType)',
+      pageSize: 100,
     });
-    const items = res.data.files || [];
-    console.log(`Found ${items.length} items (files and folders).`);
-    return items;
+    const files = res.data.files || [];
+    console.log(`Found ${files.length} files.`);
+    return files;
   } catch (error) {
-    console.error('Error listing files and folders:', error);
-    throw new Error('Failed to list items from Google Drive.');
+    console.error('Error listing files:', error);
+    throw new Error('Failed to list files from Google Drive.');
   }
 }
 
@@ -99,11 +93,10 @@ async function getFileContent(
 }
 
 /**
- * Fetches all documents and images from the specified Google Drive folder,
- * organizing them into a structured knowledge base.
- * @returns {Promise<KnowledgeBase | string>} A promise that resolves to the knowledge base object or an error string.
+ * Fetches all documents from the specified Google Drive folder and consolidates their content.
+ * @returns {Promise<string>} A promise that resolves to the consolidated document content or an error string.
  */
-export async function getKnowledgeBase(): Promise<KnowledgeBase | string> {
+export async function getKnowledgeBase(): Promise<string> {
   console.log('Fetching knowledge base from Google Drive...');
   const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
@@ -115,60 +108,25 @@ export async function getKnowledgeBase(): Promise<KnowledgeBase | string> {
 
   try {
     const drive = getGoogleDriveService();
-    const allItems = await listFilesAndFolders(drive, folderId);
+    const files = await listFiles(drive, folderId);
 
-    const documents = allItems.filter(
-      (item) =>
-        item.mimeType === 'text/plain' ||
-        item.mimeType === 'application/vnd.google-apps.document'
-    );
-    
-    const folders = allItems.filter(
-      (item) => item.mimeType === 'application/vnd.google-apps.folder'
-    );
-
-    if (documents.length === 0) {
-      console.log('No text files or Google Docs found in the root of the specified Google Drive folder.');
+    if (files.length === 0) {
+      console.log('No text files or Google Docs found in the specified Google Drive folder.');
       return 'I am sorry, I cannot answer this question based on the provided Google Drive data, as no relevant documents were found.';
     }
 
-    // Fetch document contents
     const docContents = await Promise.all(
-      documents.map(async (doc) => {
-        if (doc.id && doc.name && doc.mimeType) {
-          const content = await getFileContent(drive, doc.id, doc.mimeType);
-          return `Document: ${doc.name}\nContent:\n${content}\n---`;
+      files.map(async (file) => {
+        if (file.id && file.name && file.mimeType) {
+          const content = await getFileContent(drive, file.id, file.mimeType);
+          return `Document: ${file.name}\nContent:\n${content}\n---`;
         }
         return '';
       })
     );
-
-    // Fetch images from sub-folders
-    const imageMap: Record<string, drive_v3.Schema$File[]> = {};
-    for (const folder of folders) {
-      if (folder.id && folder.name) {
-        console.log(`Fetching images from sub-folder: ${folder.name}`);
-        const imageFiles = await drive.files.list({
-          q: `'${folder.id}' in parents and (mimeType='image/jpeg' or mimeType='image/png') and trashed=false`,
-          fields: 'files(id, name, webViewLink, thumbnailLink)',
-          pageSize: 50,
-        });
-        if (imageFiles.data.files && imageFiles.data.files.length > 0) {
-          imageMap[folder.name] = imageFiles.data.files;
-          console.log(`Found ${imageFiles.data.files.length} images in ${folder.name}.`);
-        }
-      }
-    }
     
-    console.log(`Successfully fetched ${documents.length} documents.`);
-    if (Object.keys(imageMap).length > 0) {
-      console.log(`Successfully mapped images from ${Object.keys(imageMap).length} sub-folders.`);
-    }
-
-    return {
-      documents: docContents.join('\n'),
-      images: imageMap,
-    };
+    console.log(`Successfully fetched and consolidated ${files.length} documents.`);
+    return docContents.join('\n');
   } catch (error) {
     console.error('An error occurred while building the knowledge base:', error);
     const errorMessage =

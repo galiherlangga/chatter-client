@@ -2,9 +2,9 @@
 
 import { moderateChatContent } from "@/ai/flows/moderate-chat-content";
 import { generateResponseFromDrive } from "@/ai/flows/generate-response-from-drive";
-import { getKnowledgeBase, type KnowledgeBase } from "@/services/google-drive";
+import { getKnowledgeBase } from "@/services/google-drive";
 
-export async function handleSendMessage(message: string): Promise<{ response?: string; imageUrl?: string; error?: string }> {
+export async function handleSendMessage(message: string): Promise<{ response?: string; error?: string }> {
   try {
     const moderationResult = await moderateChatContent({ text: message });
 
@@ -20,18 +20,12 @@ export async function handleSendMessage(message: string): Promise<{ response?: s
       return { error: `I am having trouble accessing the knowledge base from Google Drive. Please ensure it's configured correctly. Details: ${knowledgeBase}` };
     }
 
-    const { documents, images } = knowledgeBase;
-
     const responseResult = await generateResponseFromDrive({
       query: message,
-      driveData: documents,
-      availableImages: images,
+      driveData: knowledgeBase,
     });
     
-    // The thumbnailLink from Google Drive needs to be resized for better quality
-    const imageUrl = responseResult.imageUrl ? `${responseResult.imageUrl.split('=')[0]}=s800` : undefined;
-
-    return { response: responseResult.response, imageUrl };
+    return { response: responseResult.response };
 
   } catch (e) {
     console.error(e);
