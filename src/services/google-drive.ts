@@ -119,7 +119,7 @@ export async function getKnowledgeBase(): Promise<string> {
 
     if (files.length === 0) {
       console.log('No text files or Google Docs found in the specified Google Drive folder.');
-      return 'No knowledge base documents found.';
+      return 'I am sorry, I cannot answer this question based on the provided Google Drive data, as no relevant documents were found.';
     }
 
     const fileContents = await Promise.all(
