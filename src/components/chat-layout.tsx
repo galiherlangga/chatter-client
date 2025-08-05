@@ -28,7 +28,7 @@ export default function ChatLayout() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
@@ -40,34 +40,35 @@ export default function ChatLayout() {
     setInput('');
     setIsLoading(true);
 
-    try {
-      const result = await handleSendMessage(currentInput);
-  
-      if (result.error) {
+    handleSendMessage(currentInput)
+      .then((result) => {
+        if (result.error) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: result.error,
+          });
+          setMessages((prev) => prev.filter((msg) => msg.id !== userMessageId));
+        } else if (result.response) {
+          const botMessage: Message = { 
+            id: crypto.randomUUID(), 
+            role: 'assistant', 
+            content: result.response,
+          };
+          setMessages((prev) => [...prev, botMessage]);
+        }
+      })
+      .catch(() => {
         toast({
           variant: 'destructive',
-          title: 'Error',
-          description: result.error,
+          title: 'An error occurred',
+          description: 'Failed to get a response. Please try again.',
         });
         setMessages((prev) => prev.filter((msg) => msg.id !== userMessageId));
-      } else if (result.response) {
-        const botMessage: Message = { 
-          id: crypto.randomUUID(), 
-          role: 'assistant', 
-          content: result.response,
-        };
-        setMessages((prev) => [...prev, botMessage]);
-      }
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'An error occurred',
-        description: 'Failed to get a response. Please try again.',
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
-      setMessages((prev) => prev.filter((msg) => msg.id !== userMessageId));
-    } finally {
-      setIsLoading(false);
-    }
   };
   
   return (
