@@ -14,6 +14,7 @@ export async function handleSendMessage(message: string): Promise<{
     response?: string;
     error?: string;
     images?: { url: string; alt?: string; stepId?: string }[];
+    suggestTicket?: boolean;
 }> {
     console.log("Processing message:", message);
     try {
@@ -44,7 +45,12 @@ export async function handleSendMessage(message: string): Promise<{
             knowledgeBase ===
             "I am sorry, I cannot answer this question based on the provided Google Drive data, as no relevant documents were found."
         ) {
-            return { response: knowledgeBase };
+            return {
+                response:
+                    knowledgeBase +
+                    " Would you like to create a ticket for this question so our team can follow up?",
+                suggestTicket: true,
+            };
         }
 
         // Fetch available images from knowledge sites

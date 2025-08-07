@@ -17,6 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { handleSendMessage } from "@/app/actions";
 import { ChatMessage, type Message } from "./chat-message";
 import { LoadingIndicator } from "./loading-indicator";
+import { useCallback } from "react";
+import { TicketFormModal } from "./ticket-form-modal";
 
 export default function ChatLayout() {
   const [messages, setMessages] = useState<Message[]>([
@@ -24,13 +26,16 @@ export default function ChatLayout() {
       id: "1",
       role: "assistant",
       content:
-        "Hello! I am ChroBot. How can I help you today? I can use images from my knowledge base to help answer your questions.",
+        "Hello! I am ChroBot. How can I help you today? I can use images from my knowledge base to help answer your questions. If I don't have an answer in my knowledge base, I can create a ticket for our team to follow up.",
     },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [ticketModalOpen, setTicketModalOpen] = useState(false);
+  const [ticketQuestion, setTicketQuestion] = useState("");
+  const [ticketMessageId, setTicketMessageId] = useState("");
 
   // Function to attempt to get direct image URLs
   const tryGetDirectImageUrls = async (
@@ -62,6 +67,76 @@ export default function ChatLayout() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  // Event handlers for ticket creation
+  const handleCreateTicket = useCallback(
+    (event: CustomEvent) => {
+      const { messageId } = event.detail;
+
+      // Get the user's question from the messages
+      const userQuestion =
+        messages.find((msg) => msg.id === messageId)?.content ||
+        "Unknown question";
+
+      // Open the ticket modal with this question
+      setTicketQuestion(userQuestion);
+      setTicketMessageId(messageId);
+      setTicketModalOpen(true);
+    },
+    [messages],
+  );
+
+  // Handle ticket created from the modal
+  const handleTicketCreated = useCallback(
+    (messageId: string, ticketId: string) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                ticketCreated: true,
+                suggestTicket: false,
+                ticketCreationInProgress: false,
+                ticketId: ticketId,
+              }
+            : msg,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleDismissTicket = useCallback((event: CustomEvent) => {
+    const { messageId } = event.detail;
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, suggestTicket: false } : msg,
+      ),
+    );
+  }, []);
+
+  // Add event listeners for ticket actions
+  useEffect(() => {
+    window.addEventListener(
+      "createTicket",
+      handleCreateTicket as EventListener,
+    );
+    window.addEventListener(
+      "dismissTicket",
+      handleDismissTicket as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "createTicket",
+        handleCreateTicket as EventListener,
+      );
+      window.removeEventListener(
+        "dismissTicket",
+        handleDismissTicket as EventListener,
+      );
+    };
+  }, [handleCreateTicket, handleDismissTicket]);
 
   // Effect to try to get direct image URLs
   useEffect(() => {
@@ -134,41 +209,44 @@ export default function ChatLayout() {
         });
         setMessages((prev) => prev.filter((msg) => msg.id !== userMessageId));
       } else if (result.response) {
-        // Convert image URLs if needed
-        let processedImages = result.images;
-        if (result.images && result.images.length > 0) {
-          processedImages = result.images.map((image) => {
-            // If URL is a Google Drive link, try to get the actual googleusercontent URL
-            if (
-              image.url.includes("drive.google.com") &&
-              !image.url.includes("googleusercontent.com")
-            ) {
-              console.log(
-                `Setting up image for direct URL fetch: ${image.url}`,
-              );
-              // Keep the original URL but set a flag to try to fetch the direct URL
-              return {
-                ...image,
-                needsDirectUrl: true,
-              };
-            }
-            return image;
-          });
+        if (result.response) {
+          // Convert image URLs if needed
+          let processedImages = result.images;
+          if (result.images && result.images.length > 0) {
+            processedImages = result.images.map((image) => {
+              // If URL is a Google Drive link, try to get the actual googleusercontent URL
+              if (
+                image.url.includes("drive.google.com") &&
+                !image.url.includes("googleusercontent.com")
+              ) {
+                console.log(
+                  `Setting up image for direct URL fetch: ${image.url}`,
+                );
+                // Keep the original URL but set a flag to try to fetch the direct URL
+                return {
+                  ...image,
+                  needsDirectUrl: true,
+                };
+              }
+              return image;
+            });
+          }
+
+          const botMessage: Message = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: result.response || "",
+            images: processedImages,
+            suggestTicket: result.suggestTicket,
+          };
+
+          // Log message content for debugging
+          console.log(
+            "Adding bot message with images:",
+            processedImages?.length || 0,
+          );
+          setMessages((prev) => [...prev, botMessage]);
         }
-
-        const botMessage: Message = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: result.response || "",
-          images: processedImages,
-        };
-
-        // Log message content for debugging
-        console.log(
-          "Adding bot message with images:",
-          processedImages?.length || 0,
-        );
-        setMessages((prev) => [...prev, botMessage]);
       }
     } catch (error) {
       toast({
@@ -241,6 +319,15 @@ export default function ChatLayout() {
           </form>
         </CardFooter>
       </Card>
+
+      {/* Ticket form modal */}
+      <TicketFormModal
+        isOpen={ticketModalOpen}
+        onClose={() => setTicketModalOpen(false)}
+        question={ticketQuestion}
+        messageId={ticketMessageId}
+        onTicketCreated={handleTicketCreated}
+      />
     </div>
   );
 }
