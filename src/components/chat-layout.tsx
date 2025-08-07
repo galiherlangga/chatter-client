@@ -190,7 +190,6 @@ export default function ChatLayout() {
       id: userMessageId,
       role: "user",
       content: input,
-      // Users don't have images
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -209,44 +208,13 @@ export default function ChatLayout() {
         });
         setMessages((prev) => prev.filter((msg) => msg.id !== userMessageId));
       } else if (result.response) {
-        if (result.response) {
-          // Convert image URLs if needed
-          let processedImages = result.images;
-          if (result.images && result.images.length > 0) {
-            processedImages = result.images.map((image) => {
-              // If URL is a Google Drive link, try to get the actual googleusercontent URL
-              if (
-                image.url.includes("drive.google.com") &&
-                !image.url.includes("googleusercontent.com")
-              ) {
-                console.log(
-                  `Setting up image for direct URL fetch: ${image.url}`,
-                );
-                // Keep the original URL but set a flag to try to fetch the direct URL
-                return {
-                  ...image,
-                  needsDirectUrl: true,
-                };
-              }
-              return image;
-            });
-          }
-
-          const botMessage: Message = {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: result.response || "",
-            images: processedImages,
-            suggestTicket: result.suggestTicket,
-          };
-
-          // Log message content for debugging
-          console.log(
-            "Adding bot message with images:",
-            processedImages?.length || 0,
-          );
-          setMessages((prev) => [...prev, botMessage]);
-        }
+        const botMessage: Message = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: result.response || "",
+          suggestTicket: result.suggestTicket,
+        };
+        setMessages((prev) => [...prev, botMessage]);
       }
     } catch (error) {
       toast({
@@ -254,6 +222,9 @@ export default function ChatLayout() {
         title: "An error occurred",
         description: "Failed to get a response. Please try again.",
       });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
