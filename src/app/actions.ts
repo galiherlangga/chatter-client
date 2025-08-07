@@ -53,46 +53,6 @@ export async function handleSendMessage(message: string): Promise<{
             };
         }
 
-        // Fetch available images from knowledge sites
-        const availableImages = await getImagesFromKnowledgeSites();
-        console.log(
-            `Available images from knowledge sites: ${availableImages.length}`,
-        );
-
-        // Try to get cached direct URLs for these images
-        const cachedUrls = await getCachedImageUrls();
-
-        // Log all available images for debugging
-        if (availableImages.length > 0) {
-            console.log("Available images:");
-            availableImages.forEach((img, index) => {
-                // Check if we have a cached direct URL for this image
-                const cachedUrl = cachedUrls[img.id];
-
-                if (
-                    cachedUrl &&
-                    cachedUrl.startsWith("https://lh3.googleusercontent.com/")
-                ) {
-                    console.log(
-                        `  ${index + 1}. ${img.name} - ${cachedUrl} (cached)`,
-                    );
-                    // Use the cached direct URL
-                    availableImages[index].contentLink = cachedUrl;
-                } else {
-                    // Extract the file ID for direct URL generation
-                    const fileId = img.id;
-                    // Format the content link to be directly accessible
-                    const directLink = `https://drive.google.com/uc?export=view&id=${fileId}`;
-
-                    console.log(`  ${index + 1}. ${img.name} - ${directLink}`);
-                    // Update the contentLink to use the direct format
-                    availableImages[index].contentLink = directLink;
-                }
-            });
-        } else {
-            console.warn("No images available from knowledge sites");
-        }
-
         // Get response from AI
         const responseResult = await generateResponseFromDrive({
             query: message,
@@ -111,89 +71,45 @@ export async function handleSendMessage(message: string): Promise<{
             );
 
             // Map image URLs to the format expected by the chat component
-            images = await Promise.all(
-                responseResult.imageUrls.map(async (imageData, index) => {
-                    // Check if the image data is a string or an object with stepId
-                    const isObject = typeof imageData !== "string";
-                    const url = isObject ? imageData.url : imageData;
-                    const stepId = isObject ? imageData.stepId : undefined;
+            images = responseResult.imageUrls.map((imageData, index) => {
+                // Check if the image data is a string or an object with stepId
+                const isObject = typeof imageData !== "string";
+                const url = isObject ? imageData.url : imageData;
+                const stepId = isObject ? imageData.stepId : undefined;
 
-                    console.log(
-                        `Processing image URL (${index + 1}): ${url}${stepId ? `, step: ${stepId}` : ""}`,
-                    );
+                console.log(
+                    `Processing image URL (${index + 1}): ${url}${stepId ? `, step: ${stepId}` : ""}`,
+                );
 
-                    // Verify the URL is properly formatted
-                    if (!url.startsWith("http")) {
-                        console.error(`Invalid image URL format: ${url}`);
-                        return null;
-                    }
+                // Verify the URL is properly formatted
+                if (!url.startsWith("http")) {
+                    console.error(`Invalid image URL format: ${url}`);
+                    return null;
+                }
 
-                    // Extract file ID if it's a Google Drive URL
-                    let finalUrl = url;
-                    let fileId = null;
-                    let needsDirectUrl = false;
-                    const idMatch = url.match(/id=([^&]+)/);
-                    if (idMatch && idMatch[1]) {
-                        fileId = idMatch[1];
-                        // Check if we have a cached direct URL for this file ID
-                        const cachedUrls = await getCachedImageUrls();
-                        if (
-                            cachedUrls[fileId] &&
-                            cachedUrls[fileId].startsWith(
-                                "https://lh3.googleusercontent.com/",
-                            )
-                        ) {
-                            finalUrl = cachedUrls[fileId];
-                            console.log(
-                                `Using cached direct URL for ${fileId}: ${finalUrl}`,
-                            );
-                        } else {
-                            // Use export=view format which works better with CORS
-                            finalUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
-                            // Mark this as needing a direct URL to be fetched on the client
-                            needsDirectUrl = true; 
-                        }
-                    }
+                // Extract file ID if it's a Google Drive URL
+                let finalUrl = url;
+                let fileId = null;
+                const idMatch = url.match(/id=([^&]+)/);
+                if (idMatch && idMatch[1]) {
+                    fileId = idMatch[1];
+                    // Always use the reliable export=view format
+                    finalUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+                }
 
-                    return {
-                        url: finalUrl,
-                        alt: `Related image ${index + 1} from knowledge base`,
-                        originalFileId: fileId, // Store the original file ID for caching
-                        stepId, // Include step association if present
-                        needsDirectUrl, // Indicate if we need client-side fetching
-                    };
-                }),
-            );
-
-            // Filter out any nulls that may have resulted from invalid URLs
-            images = images.filter(img => img !== null);
+                return {
+                    url: finalUrl,
+                    alt: `Related image ${index + 1} from knowledge base`,
+                    stepId,
+                };
+            }).filter(img => img !== null);
 
 
             console.log(`Final image array for message:`, images);
         } else {
             console.log("No images included in the response");
         }
-
-        // Cache any direct image URLs we've found for future use
-        if (images && images.length > 0) {
-            const urlsToCache: Record<string, string> = {};
-
-            images.forEach((image) => {
-                if (
-                    image &&
-                    image.url.includes("googleusercontent.com") &&
-                    image.originalFileId
-                ) {
-                    urlsToCache[image.originalFileId] = image.url;
-                }
-            });
-
-            if (Object.keys(urlsToCache).length > 0) {
-                await cacheImageUrls(urlsToCache);
-                console.log("Cached direct image URLs for future use");
-            }
-        }
-
+        
         // Create the final response object
         const responseData = {
             response: responseResult.response,

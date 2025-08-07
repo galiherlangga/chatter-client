@@ -37,32 +37,6 @@ export default function ChatLayout() {
   const [ticketQuestion, setTicketQuestion] = useState("");
   const [ticketMessageId, setTicketMessageId] = useState("");
 
-  // Function to attempt to get direct image URLs
-  const tryGetDirectImageUrls = async (
-    fileId: string,
-  ): Promise<string | null> => {
-    try {
-      // Call our API endpoint to get the direct URL
-      const response = await fetch("/api/image-url", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ fileId }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to get image URL: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data.url;
-    } catch (error) {
-      console.error("Failed to get direct image URL:", error);
-      return null;
-    }
-  };
-
   // Effect to handle scrolling
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -137,49 +111,6 @@ export default function ChatLayout() {
       );
     };
   }, [handleCreateTicket, handleDismissTicket]);
-
-  // Effect to try to get direct image URLs
-  useEffect(() => {
-    const processImages = async () => {
-      let needsUpdate = false;
-      const updatedMessages = [...messages];
-
-      for (let i = 0; i < updatedMessages.length; i++) {
-        const message = updatedMessages[i];
-        if (message.images) {
-          for (let j = 0; j < message.images.length; j++) {
-            const image = message.images[j];
-            if (image.needsDirectUrl) {
-              // Extract the file ID from the Google Drive URL
-              const idMatch =
-                image.url.match(/id=([^&]+)/) ||
-                image.url.match(/\/d\/([^/]+)/);
-              if (idMatch && idMatch[1]) {
-                const fileId = idMatch[1];
-                console.log(`Fetching direct URL for file ID: ${fileId}`);
-                const directUrl = await tryGetDirectImageUrls(fileId);
-                if (directUrl) {
-                  console.log(`Got direct URL: ${directUrl}`);
-                  updatedMessages[i].images![j] = {
-                    ...image,
-                    url: directUrl,
-                    needsDirectUrl: false,
-                  };
-                  needsUpdate = true;
-                }
-              }
-            }
-          }
-        }
-      }
-
-      if (needsUpdate) {
-        setMessages(updatedMessages);
-      }
-    };
-
-    processImages();
-  }, [messages]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
