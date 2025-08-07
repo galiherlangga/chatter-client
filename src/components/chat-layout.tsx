@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, type FormEvent } from "react";
 import { Send } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,7 +24,7 @@ export default function ChatLayout() {
       id: "1",
       role: "assistant",
       content:
-        "Hello! I am ChatterClient. How can I help you today? I can use images from my knowledge base to help answer your questions.",
+        "Hello! I am ChroBot. How can I help you today? I can use images from my knowledge base to help answer your questions.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -185,9 +186,17 @@ export default function ChatLayout() {
     <div className="flex justify-center items-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-2xl h-[90vh] flex flex-col shadow-2xl rounded-2xl">
         <CardHeader className="border-b">
-          <CardTitle className="font-headline text-2xl text-primary">
-            ChatterClient
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Image
+              src="/images/logo.png"
+              alt="ChroBot Logo"
+              width={64}
+              height={32}
+            />
+            <CardTitle className="font-headline text-2xl text-primary">
+              ChroBot
+            </CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden p-0">
           <ScrollArea className="h-full">
