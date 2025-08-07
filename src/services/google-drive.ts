@@ -174,7 +174,6 @@ export async function getKnowledgeBase(): Promise<string> {
     }
 
     try {
-        console.log("Fetching images from Google Drive...");
         const drive = getGoogleDriveService();
         const files = await listFiles(drive, folderId);
 

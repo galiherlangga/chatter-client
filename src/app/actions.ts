@@ -13,7 +13,7 @@ import {
 export async function handleSendMessage(message: string): Promise<{
     response?: string;
     error?: string;
-    images?: { url: string; alt?: string; stepId?: string }[];
+    images?: { url: string; alt?: string; stepId?: string, needsDirectUrl?: boolean }[];
     suggestTicket?: boolean;
 }> {
     console.log("Processing message:", message);
@@ -131,11 +131,12 @@ export async function handleSendMessage(message: string): Promise<{
                     // Extract file ID if it's a Google Drive URL
                     let finalUrl = url;
                     let fileId = null;
+                    let needsDirectUrl = false;
                     const idMatch = url.match(/id=([^&]+)/);
                     if (idMatch && idMatch[1]) {
                         fileId = idMatch[1];
                         // Check if we have a cached direct URL for this file ID
-                        const cachedUrls = await getCachedImageUrls(); // Fixed: await now inside async map
+                        const cachedUrls = await getCachedImageUrls();
                         if (
                             cachedUrls[fileId] &&
                             cachedUrls[fileId].startsWith(
@@ -149,23 +150,24 @@ export async function handleSendMessage(message: string): Promise<{
                         } else {
                             // Use export=view format which works better with CORS
                             finalUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+                            // Mark this as needing a direct URL to be fetched on the client
+                            needsDirectUrl = true; 
                         }
                     }
 
-                    // Add a cache-busting parameter to force refresh
-                    const cacheBuster = Date.now();
-                    const urlWithCacheBuster = finalUrl.includes("?")
-                        ? `${finalUrl}&_cb=${cacheBuster}`
-                        : `${finalUrl}?_cb=${cacheBuster}`;
-
                     return {
-                        url: urlWithCacheBuster,
+                        url: finalUrl,
                         alt: `Related image ${index + 1} from knowledge base`,
                         originalFileId: fileId, // Store the original file ID for caching
                         stepId, // Include step association if present
+                        needsDirectUrl, // Indicate if we need client-side fetching
                     };
                 }),
             );
+
+            // Filter out any nulls that may have resulted from invalid URLs
+            images = images.filter(img => img !== null);
+
 
             console.log(`Final image array for message:`, images);
         } else {
