@@ -382,12 +382,6 @@ export async function getImagesFromKnowledgeSites(): Promise<DriveImage[]> {
             // 1. Standard public link format
             const standardLink = `https://drive.google.com/uc?export=view&id=${file.id}`;
 
-            // 2. Preview link for iframe embedding
-            const previewLink = `https://drive.google.com/file/d/${file.id}/preview`;
-
-            // 3. Direct file view link - this is what we'll use to extract the lh3.googleusercontent.com URL
-            const viewLink = `https://drive.google.com/file/d/${file.id}/view`;
-
             console.log(`Image: ${displayName}, ID: ${file.id}`);
 
             // For direct access links, we'll use the standard format initially
@@ -395,8 +389,7 @@ export async function getImagesFromKnowledgeSites(): Promise<DriveImage[]> {
             return {
                 id: file.id || "",
                 name: displayName, // Include folder context in name
-                contentLink: standardLink,
-                directLink: viewLink, // Store the view link for later processing
+                contentLink: standardLink
             };
         });
 
@@ -404,18 +397,6 @@ export async function getImagesFromKnowledgeSites(): Promise<DriveImage[]> {
             console.log(
                 `Successfully retrieved ${images.length} images from Google Drive`,
             );
-
-            // We don't need to fetch the direct links in the development environment
-            // as it would require a headless browser
-            if (process.env.NODE_ENV === "production") {
-                console.log(
-                    "In production: would fetch direct image URLs here",
-                );
-                // Note: In a production environment, you would implement a solution
-                // that uses a headless browser like Puppeteer to extract the
-                // actual lh3.googleusercontent.com URLs. This would require setting up
-                // additional infrastructure.
-            }
         } else {
             console.warn(
                 "No images found or accessible in the specified Google Drive folder",
@@ -429,5 +410,47 @@ export async function getImagesFromKnowledgeSites(): Promise<DriveImage[]> {
             "Make sure your Google Drive folder contains image files and permissions are set correctly",
         );
         return [];
+    }
+}
+
+
+/**
+ * Retrieves the binary data of a single image file from Google Drive.
+ * @param {string} fileId - The ID of the file to retrieve.
+ * @returns {Promise<{ stream: Readable; contentType: string | null; }>} A promise that resolves to the image data stream and content type.
+ */
+export async function getImageData(fileId: string): Promise<{ stream: Readable | null; contentType: string | null; }> {
+    try {
+        console.log(`Fetching image data for file ID: ${fileId}`);
+        const drive = getGoogleDriveService();
+
+        // First, get file metadata to determine the MIME type
+        const metaRes = await drive.files.get({
+            fileId: fileId,
+            fields: 'mimeType',
+            supportsAllDrives: true,
+        });
+        const mimeType = metaRes.data.mimeType;
+        
+        console.log(`File ${fileId} has MIME type: ${mimeType}`);
+
+        if (!mimeType || !mimeType.startsWith('image/')) {
+            throw new Error(`File with ID ${fileId} is not a valid image.`);
+        }
+
+        // Get the file content as a readable stream
+        const res = await drive.files.get(
+            { fileId: fileId, alt: "media" },
+            { responseType: "stream" },
+        );
+
+        return {
+            stream: res.data,
+            contentType: mimeType,
+        };
+    } catch (error) {
+        console.error(`Error getting image data for file ${fileId}:`, error);
+        // Don't re-throw, just return nulls so the caller can handle it gracefully
+        return { stream: null, contentType: null };
     }
 }

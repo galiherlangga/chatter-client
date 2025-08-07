@@ -27,8 +27,6 @@ const ImageComponent = ({ image, index }: { image: MessageImage; index: any }) =
           src={image.url}
           alt={image.alt || `Image ${index + 1}`}
           className="absolute inset-0 w-full h-full object-contain p-1"
-          referrerPolicy="no-referrer"
-          crossOrigin="anonymous"
           loading="lazy"
           decoding="async"
           style={{
@@ -37,83 +35,9 @@ const ImageComponent = ({ image, index }: { image: MessageImage; index: any }) =
             maxHeight: "100%",
           }}
           onError={(e) => {
-            console.log("Failed to load image:", image.url);
-
-            // Handle different Google Drive URL formats
-            // Try an alternative format for Google Drive URLs
-            const imgUrl = image.url;
-
-            // Check if this is already a googleusercontent URL (which should work directly)
-            if (imgUrl.includes("googleusercontent.com")) {
-              console.log(
-                "Already using googleusercontent URL, trying to fix CORS issues",
-              );
-              // For googleusercontent URLs, try adding a cache-busting parameter
-              const cacheBuster = Date.now();
-              const newUrl = imgUrl.includes("?")
-                ? `${imgUrl}&cb=${cacheBuster}`
-                : `${imgUrl}?cb=${cacheBuster}`;
-
-              // Also update style attributes that might help with display
-              e.currentTarget.style.backgroundColor = "white";
-              e.currentTarget.style.objectFit = "contain";
-              e.currentTarget.src = newUrl;
-              return;
-            }
-
-            // Try an alternative format for Google Drive URLs
-            if (imgUrl.includes("drive.google.com")) {
-              const idMatch = imgUrl.match(/id=([^&]+)/);
-              if (idMatch && idMatch[1]) {
-                const fileId = idMatch[1];
-                // Use direct public link format
-                const newUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
-                console.log("Retrying with alternative URL format:", newUrl);
-                e.currentTarget.src = newUrl;
-                return;
-              }
-
-              // Try to extract ID from other URL formats
-              const fileIdMatch = imgUrl.match(/\/d\/([^/]+)/);
-              if (fileIdMatch && fileIdMatch[1]) {
-                const fileId = fileIdMatch[1];
-                // Try using Google Drive viewer
-                const newUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
-                console.log("Retrying with extracted file ID:", newUrl);
-                e.currentTarget.src = newUrl;
-                return;
-              }
-            }
-
-            // Create iframe method as last resort
-            if (imgUrl.includes("drive.google.com")) {
-              const idMatch =
-                imgUrl.match(/id=([^&]+)/) || imgUrl.match(/\/d\/([^/]+)/);
-              if (idMatch && idMatch[1]) {
-                const fileId = idMatch[1];
-                // Replace the image with an iframe for preview
-                const parentNode = e.currentTarget.parentNode;
-                if (parentNode) {
-                  const iframe = document.createElement("iframe");
-                  iframe.src = `https://drive.google.com/file/d/${fileId}/preview`;
-                  iframe.width = "100%";
-                  iframe.height = "100%";
-                  iframe.style.position = "absolute";
-                  iframe.style.inset = "0";
-                  iframe.style.border = "none";
-                  iframe.frameBorder = "0";
-                  iframe.allow = "autoplay";
-                  iframe.allowFullscreen = true;
-                  parentNode.innerHTML = "";
-                  parentNode.appendChild(iframe);
-                  console.log("Replaced with iframe preview");
-                  return;
-                }
-              }
-            }
-
-            // Final fallback to placeholder
-            console.log("All image loading attempts failed, using placeholder");
+            console.log("Failed to load proxied image:", image.url);
+            // Since this is a proxied URL, we can't do much on error.
+            // We'll just show a placeholder.
             e.currentTarget.src =
               "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'%3E%3C/circle%3E%3Cpolyline points='21 15 16 10 5 21'%3E%3C/polyline%3E%3C/svg%3E";
             e.currentTarget.style.padding = "2rem";

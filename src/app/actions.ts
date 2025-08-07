@@ -76,32 +76,41 @@ export async function handleSendMessage(message: string): Promise<{
                 const isObject = typeof imageData !== "string";
                 const url = isObject ? imageData.url : imageData;
                 const stepId = isObject ? imageData.stepId : undefined;
+                const fileId = isObject ? (imageData as any).id : null;
+
 
                 console.log(
                     `Processing image URL (${index + 1}): ${url}${stepId ? `, step: ${stepId}` : ""}`,
                 );
 
-                // Verify the URL is properly formatted
+                // If we have a file ID, create a proxy URL
+                if (fileId) {
+                    return {
+                        url: `/api/image-proxy?fileId=${fileId}`,
+                        alt: `Related image ${index + 1} from knowledge base`,
+                        stepId,
+                    };
+                }
+
+                // Fallback for older data that might not have the ID
                 if (!url.startsWith("http")) {
                     console.error(`Invalid image URL format: ${url}`);
                     return null;
                 }
 
                 // Extract file ID if it's a Google Drive URL
-                let finalUrl = url;
-                let fileId = null;
                 const idMatch = url.match(/id=([^&]+)/);
                 if (idMatch && idMatch[1]) {
-                    fileId = idMatch[1];
-                    // Always use the reliable export=view format
-                    finalUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+                   const matchedFileId = idMatch[1];
+                    return {
+                        url: `/api/image-proxy?fileId=${matchedFileId}`,
+                        alt: `Related image ${index + 1} from knowledge base`,
+                        stepId,
+                    };
                 }
 
-                return {
-                    url: finalUrl,
-                    alt: `Related image ${index + 1} from knowledge base`,
-                    stepId,
-                };
+                // If we can't get a file ID, return null so it can be filtered
+                return null;
             }).filter(img => img !== null);
 
 
@@ -119,9 +128,6 @@ export async function handleSendMessage(message: string): Promise<{
         // Log a summary of what we're returning
         console.log(
             `Sending response with ${images ? images.length : 0} images`,
-        );
-        console.log(
-            `Response text length: ${responseResult.response.length} characters`,
         );
         if (images && images.length > 0) {
             console.log(

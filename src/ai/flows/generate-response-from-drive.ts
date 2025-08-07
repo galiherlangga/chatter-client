@@ -36,6 +36,7 @@ const GenerateResponseFromDriveOutputSchema = z.object({
             z.union([
                 z.string(),
                 z.object({
+                    id: z.string(),
                     url: z.string(),
                     stepId: z.string().optional(),
                 }),
@@ -71,10 +72,10 @@ export async function generateResponseFromDrive(
     if (knowledgeImages.length > 0) {
         // Log all available images for debugging
         knowledgeImages.forEach((img, i) => {
-            console.log(`Image ${i + 1}: ${img.name} - ${img.contentLink}`);
+            console.log(`Image ${i + 1}: ${img.name} - ${img.contentLink} (ID: ${img.id})`);
         });
 
-        imageInfo = `Available images: ${knowledgeImages.map((img) => img.name).join(", ")}`;
+        imageInfo = `Available images: ${knowledgeImages.map((img) => `${img.name} (ID: ${img.id})`).join(", ")}`;
     }
 
     // Add image information to the input
@@ -92,7 +93,7 @@ export async function generateResponseFromDrive(
                 img.name.toLowerCase().includes("login") ||
                 img.name.toLowerCase().includes("step"),
         )
-        .map((img) => img.name);
+        .map((img) => `${img.name} (ID: ${img.id})`);
 
     // Highlight relevant images based on query
     if (isLoginRelated && loginImages.length > 0) {
@@ -345,12 +346,16 @@ export async function generateResponseFromDrive(
                     // Add stepId property if this image was associated with a step
                     if (stepAssociation) {
                         return {
+                            id: img.id,
                             url: img.contentLink,
                             stepId: `step-${stepAssociation.stepNum}`,
                         };
                     }
 
-                    return img.contentLink;
+                    return {
+                       id: img.id,
+                       url: img.contentLink,
+                    };
                 }),
             };
         }
@@ -394,24 +399,25 @@ const generateResponseFromDrivePrompt = ai.definePrompt({
   If appropriate for your response, you can include images by adding tags to associate images with specific steps or sections:
 
   For numbered steps or bullet points, use the following format to link images directly to a step:
-  - For Step 1: [image-step1: image_name]
-  - For Step 2: [image-step2: image_name]
-  - For Step 3: [image-step3: image_name]
+  - For Step 1: [image-step1: image_name (ID: file_id)]
+  - For Step 2: [image-step2: image_name (ID: file_id)]
+  - For Step 3: [image-step3: image_name (ID: file_id)]
 
   Examples:
-  - Here's how to login (Step 1): [image-step1: images/login-step/step1.png]
-  - Next, enter your credentials (Step 2): [image-step2: images/login-step/step2.png]
-  - Finally, click Submit (Step 3): [image-step3: images/login-step/step3.png]
+  - Here's how to login (Step 1): [image-step1: images/login-step/step1.png (ID: 123...)]
+  - Next, enter your credentials (Step 2): [image-step2: images/login-step/step2.png (ID: 456...)]
+  - Finally, click Submit (Step 3): [image-step3: images/login-step/step3.png (ID: 789...)]
 
   You can also use the general format for non-step content:
-  - Here's an important diagram: [image: flowchart.png]
-  - This concept is illustrated in [image: concept_diagram.jpg]
+  - Here's an important diagram: [image: flowchart.png (ID: abc...)]
+  - This concept is illustrated in [image: concept_diagram.jpg (ID: def...)]
 
   Note:
   1. Images may be in subfolders like "images/login-step/". When referencing these images, include the full path as shown in the list.
-  2. These images are publicly accessible and ready to be displayed directly.
-  3. You don't need to worry about permissions or access rights - all listed images are available for use.
-  4. When describing steps or processes, especially for login flows, ALWAYS include relevant images when available.
+  2. You MUST include the (ID: file_id) part when referencing an image.
+  3. These images are publicly accessible and ready to be displayed directly.
+  4. You don't need to worry about permissions or access rights - all listed images are available for use.
+  5. When describing steps or processes, especially for login flows, ALWAYS include relevant images when available.
 
   Only add images when they are truly helpful for understanding your response. You can include up to 3 images.
   {{/if}}
