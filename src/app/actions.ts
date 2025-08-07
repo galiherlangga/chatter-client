@@ -13,7 +13,7 @@ import {
 export async function handleSendMessage(message: string): Promise<{
     response?: string;
     error?: string;
-    images?: { url: string; alt?: string }[];
+    images?: { url: string; alt?: string; stepId?: string }[];
 }> {
     console.log("Processing message:", message);
     try {
@@ -106,15 +106,22 @@ export async function handleSendMessage(message: string): Promise<{
 
             // Map image URLs to the format expected by the chat component
             images = await Promise.all(
-                responseResult.imageUrls.map(async (url, index) => {
-                    console.log(`Processing image URL (${index + 1}): ${url}`);
-            
+                responseResult.imageUrls.map(async (imageData, index) => {
+                    // Check if the image data is a string or an object with stepId
+                    const isObject = typeof imageData !== "string";
+                    const url = isObject ? imageData.url : imageData;
+                    const stepId = isObject ? imageData.stepId : undefined;
+
+                    console.log(
+                        `Processing image URL (${index + 1}): ${url}${stepId ? `, step: ${stepId}` : ""}`,
+                    );
+
                     // Verify the URL is properly formatted
                     if (!url.startsWith("http")) {
                         console.error(`Invalid image URL format: ${url}`);
                         return null;
                     }
-            
+
                     // Extract file ID if it's a Google Drive URL
                     let finalUrl = url;
                     let fileId = null;
@@ -138,21 +145,21 @@ export async function handleSendMessage(message: string): Promise<{
                             finalUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
                         }
                     }
-            
+
                     // Add a cache-busting parameter to force refresh
                     const cacheBuster = Date.now();
                     const urlWithCacheBuster = finalUrl.includes("?")
                         ? `${finalUrl}&_cb=${cacheBuster}`
                         : `${finalUrl}?_cb=${cacheBuster}`;
-            
+
                     return {
                         url: urlWithCacheBuster,
                         alt: `Related image ${index + 1} from knowledge base`,
                         originalFileId: fileId, // Store the original file ID for caching
+                        stepId, // Include step association if present
                     };
-                })
+                }),
             );
-
 
             console.log(`Final image array for message:`, images);
         } else {
@@ -165,6 +172,7 @@ export async function handleSendMessage(message: string): Promise<{
 
             images.forEach((image) => {
                 if (
+                    image &&
                     image.url.includes("googleusercontent.com") &&
                     image.originalFileId
                 ) {

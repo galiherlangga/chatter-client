@@ -32,13 +32,29 @@ const GenerateResponseFromDriveOutputSchema = z.object({
         .string()
         .describe("The text response generated from the Google Drive data."),
     imageUrls: z
-        .array(z.string())
+        .array(
+            z.union([
+                z.string(),
+                z.object({
+                    url: z.string(),
+                    stepId: z.string().optional(),
+                }),
+            ]),
+        )
         .optional()
-        .describe("URLs of relevant images to include with the response"),
+        .describe(
+            "URLs of relevant images to include with the response, optionally with step associations",
+        ),
 });
 export type GenerateResponseFromDriveOutput = z.infer<
     typeof GenerateResponseFromDriveOutputSchema
 >;
+
+// Helper type for image references with step associations
+type ImageWithStepId = {
+    url: string;
+    stepId?: string;
+};
 
 export async function generateResponseFromDrive(
     input: GenerateResponseFromDriveInput,
@@ -94,19 +110,36 @@ export async function generateResponseFromDrive(
 
     // Extract and process images if available
     if (knowledgeImages.length > 0) {
-        // Parse the response to extract image references
-        const imageRegex = /\[image:\s*([^\]]+)\]/gi;
+        // Parse the response to extract image references with step associations
+        const generalImageRegex = /\[image:\s*([^\]]+)\]/gi;
+        const stepImageRegex = /\[image-step(\d+):\s*([^\]]+)\]/gi;
         let match;
         const requestedImageNames: string[] = [];
+        const requestedStepImages: Array<{
+            stepNum: string;
+            imageName: string;
+        }> = [];
         let cleanedResponse = result.response;
 
-        // Extract image references from the response
-        while ((match = imageRegex.exec(result.response)) !== null) {
-            // Handle both [image: name] format and markdown image format
-            const imageName = (match[1] || match[2])?.trim();
+        // Extract general image references from the response
+        while ((match = generalImageRegex.exec(result.response)) !== null) {
+            const imageName = match[1]?.trim();
             if (imageName) {
-                console.log(`Found image reference: ${imageName}`);
+                console.log(`Found general image reference: ${imageName}`);
                 requestedImageNames.push(imageName);
+            }
+        }
+
+        // Extract step-specific image references
+        while ((match = stepImageRegex.exec(result.response)) !== null) {
+            const stepNum = match[1]?.trim();
+            const imageName = match[2]?.trim();
+            if (stepNum && imageName) {
+                console.log(
+                    `Found step ${stepNum} image reference: ${imageName}`,
+                );
+                requestedStepImages.push({ stepNum, imageName });
+                requestedImageNames.push(imageName); // Also add to general list for finding
             }
         }
 
@@ -156,8 +189,11 @@ export async function generateResponseFromDrive(
             });
         }
 
-        // Remove image references from the response
-        cleanedResponse = cleanedResponse.replace(imageRegex, "").trim();
+        // Remove all image references from the response
+        cleanedResponse = cleanedResponse
+            .replace(generalImageRegex, "")
+            .replace(stepImageRegex, "")
+            .trim();
         console.log(
             "Cleaned response (after removing image tags):",
             cleanedResponse,
@@ -288,11 +324,34 @@ export async function generateResponseFromDrive(
         const limitedImages = selectedImages.slice(0, 3);
         console.log(`Using ${limitedImages.length} images in response`);
 
-        // Return the cleaned response with selected image URLs
+        // Return the cleaned response with selected image URLs and step associations
         if (limitedImages.length > 0) {
             return {
                 response: cleanedResponse,
-                imageUrls: limitedImages.map((img) => img.contentLink),
+                imageUrls: limitedImages.map((img) => {
+                    // Find if this image was associated with a specific step
+                    const stepAssociation = requestedStepImages.find(
+                        (stepImg) => {
+                            const imageName = img.name.toLowerCase();
+                            const requestedName =
+                                stepImg.imageName.toLowerCase();
+                            return (
+                                imageName.includes(requestedName) ||
+                                requestedName.includes(imageName)
+                            );
+                        },
+                    );
+
+                    // Add stepId property if this image was associated with a step
+                    if (stepAssociation) {
+                        return {
+                            url: img.contentLink,
+                            stepId: `step-${stepAssociation.stepNum}`,
+                        };
+                    }
+
+                    return img.contentLink;
+                }),
             };
         }
     }
@@ -332,12 +391,21 @@ const generateResponseFromDrivePrompt = ai.definePrompt({
   The following images are available to include in your response:
   {{availableImages}}
 
-  If appropriate for your response, you can include images by adding [image: image_name] tags, where image_name is the name of an image from the list above.
+  If appropriate for your response, you can include images by adding tags to associate images with specific steps or sections:
+
+  For numbered steps or bullet points, use the following format to link images directly to a step:
+  - For Step 1: [image-step1: image_name]
+  - For Step 2: [image-step2: image_name]
+  - For Step 3: [image-step3: image_name]
 
   Examples:
+  - Here's how to login (Step 1): [image-step1: images/login-step/step1.png]
+  - Next, enter your credentials (Step 2): [image-step2: images/login-step/step2.png]
+  - Finally, click Submit (Step 3): [image-step3: images/login-step/step3.png]
+
+  You can also use the general format for non-step content:
   - Here's an important diagram: [image: flowchart.png]
   - This concept is illustrated in [image: concept_diagram.jpg]
-  - For login steps, use: [image: images/login-step/step1.png]
 
   Note:
   1. Images may be in subfolders like "images/login-step/". When referencing these images, include the full path as shown in the list.
