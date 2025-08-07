@@ -7,6 +7,14 @@
 - Real-time Communication: Implement WebSocket communication to send and receive messages.
 - Content Moderation: Utilize a tool to monitor chat content for harmful speech and provide feedback, warnings, or moderation actions.
 - Google Drive Data Integration: Incorporate data from Google Drive as the base knowledge for the chat's responses.
+- Knowledge Site: Is a list of sites used to provide additional context and information for the chat, enhancing the conversation quality.
+- Response Generation: Add related images found in the Google Drive or knowledge sites to the chat responses, enriching the user experience.
+- Images found in google drive or knowledge sites should be displayed in the chat responses to enhance the conversation quality. Load the images asynchronously to ensure smooth performance. In google drive it stored inside images dir, and category directories (e.g. login-step)
+
+## Google Drive Scafolding:
+- / (*.docx/*.xlsx/*.pdf) -> all document files that can be used as knowledge sources.
+- /images/
+-- /images/login-step/ -> images related to the login step.
 
 ## Style Guidelines:
 
