@@ -1,6 +1,5 @@
 "use server";
 
-import { moderateChatContent } from "@/ai/flows/moderate-chat-content";
 import { generateResponseFromDrive } from "@/ai/flows/generate-response-from-drive";
 import {
     getKnowledgeBase,
@@ -18,15 +17,6 @@ export async function handleSendMessage(message: string): Promise<{
 }> {
     console.log("Processing message:", message);
     try {
-        const moderationResult = await moderateChatContent({ text: message });
-
-        if (moderationResult.isHarmful) {
-            console.warn("Harmful content detected:", moderationResult);
-            return {
-                error: `Message flagged as harmful. ${moderationResult.feedback}`,
-            };
-        }
-
         const knowledgeBase = await getKnowledgeBase();
 
         // Check if the knowledge base returned an error string.
