@@ -97,7 +97,7 @@ export async function handleSendMessage(message: string): Promise<{
 
                 // If we can't get a file ID, return null so it can be filtered
                 return null;
-            }).filter(img => img !== null);
+            }).filter(img => img !== null) as { url: string; alt?: string; stepId?: string; needsDirectUrl?: boolean; }[] | undefined;
 
 
             console.log(`Final image array for message:`, images);
