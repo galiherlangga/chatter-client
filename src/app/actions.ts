@@ -3,10 +3,6 @@
 import { generateResponseFromDrive } from "@/ai/flows/generate-response-from-drive";
 import {
     getKnowledgeBase,
-    getImagesFromKnowledgeSites,
-    DriveImage,
-    getCachedImageUrls,
-    cacheImageUrls,
 } from "@/services/google-drive";
 
 export async function handleSendMessage(message: string): Promise<{
