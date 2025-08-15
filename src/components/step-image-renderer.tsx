@@ -67,7 +67,9 @@ export const StepImageRenderer: React.FC<StepImageRendererProps> = ({
 
   const CustomListItem = (props: any) => {
     const { node, ordered, index, children } = props;
-    const stepNumber = ordered ? (node.position?.start.line || 0) : (index ?? 0) + 1;
+    // For ordered lists, `node.start` gives the number of the first item.
+    // The `index` prop gives the zero-based index of the current item in the list.
+    const stepNumber = ordered ? (node.start ?? 1) + index : index + 1;
     const currentStepId = `step-${stepNumber}`;
     const stepImages = images.filter((image) => image.stepId === currentStepId);
 
