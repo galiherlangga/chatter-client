@@ -69,13 +69,12 @@ export const StepImageRenderer: React.FC<StepImageRendererProps> = ({
     return <ReactMarkdown>{content}</ReactMarkdown>;
   }
 
-  // Parse the content to identify steps and sections
   // Check if the content has numbered steps or bullet points
-  const hasNumberedSteps = /^\d+\.\s/gm.test(content);
-  const hasBulletPoints = /^[-*]\s/gm.test(content);
+  const hasNumberedSteps = /^\s*\d+\.\s/m.test(content);
+  const hasBulletPoints = /^\s*[-*]\s/m.test(content);
 
+  // If no steps are found, just show content followed by all images
   if (!hasNumberedSteps && !hasBulletPoints) {
-    // If no steps are found, just show content followed by all images
     return (
       <>
         <ReactMarkdown>{content}</ReactMarkdown>
@@ -94,85 +93,30 @@ export const StepImageRenderer: React.FC<StepImageRendererProps> = ({
       </>
     );
   }
+  
+  // Split content into sections (steps)
+  const sections = content.split(/(?=^\s*(\d+\.|[-*])\s)/m).filter(s => s.trim());
+  const usedImageUrls = new Set<string>();
 
-  // Split content into sections by steps
-  let sections: string[] = [];
-
-  if (hasNumberedSteps) {
-    // Split by numbered steps (1. Step one, 2. Step two, etc.)
-    sections = content.split(/(?=^\d+\.\s)/gm);
-  } else if (hasBulletPoints) {
-    // Split by bullet points
-    sections = content.split(/(?=^[-*]\s)/gm);
-  }
-
-  // Filter out empty sections
-  sections = sections.filter((section) => section.trim().length > 0);
-
-  // Helper function to find images for a step
-  const findImagesForStep = (stepText: string, stepIndex: number) => {
-    // Look for image references in step text
-    const lowerStepText = stepText.toLowerCase();
-
-    // Keywords that might appear in step text and image names
-    const stepNumber = (stepIndex + 1).toString();
-    const stepKeywords = [
-      `step ${stepNumber}`,
-      `step${stepNumber}`,
-      `step-${stepNumber}`,
-      `${stepNumber}.`,
-      `image ${stepNumber}`,
-      `screenshot ${stepNumber}`,
-    ];
-
-    // Find images with matching step numbers or keywords
-    return images.filter((image) => {
-      const imageName = (image.alt || "").toLowerCase();
-      const imageUrl = image.url.toLowerCase();
-
-      // Check for step number in image name or URL
-      const matchesStepNumber = stepKeywords.some(
-        (keyword) => imageName.includes(keyword) || imageUrl.includes(keyword),
-      );
-
-      // Check for explicit stepId match
-      const matchesStepId = image.stepId === `step-${stepIndex + 1}`;
-
-      // Check for keyword matches between step text and image name/alt
-      const wordsInStep = lowerStepText
-        .split(/\W+/)
-        .filter((word) => word.length > 3);
-
-      const wordsInImage = imageName
-        .split(/\W+/)
-        .filter((word) => word.length > 3);
-
-      const hasMatchingKeywords = wordsInStep.some((stepWord) =>
-        wordsInImage.some(
-          (imgWord) => imgWord.includes(stepWord) || stepWord.includes(imgWord),
-        ),
-      );
-
-      return matchesStepNumber || matchesStepId || hasMatchingKeywords;
-    });
-  };
-
-  // Render each section with its associated images
   return (
     <div className="space-y-4">
       {sections.map((section, index) => {
-        const stepImages = findImagesForStep(section, index);
-        const hasImages = stepImages.length > 0;
+        // The step number for numbered lists, or index for bulleted lists
+        const stepNumber = (hasNumberedSteps ? parseInt(section.match(/^\s*(\d+)/)?.[1] ?? (index + 1).toString(), 10) : index + 1);
+        const currentStepId = `step-${stepNumber}`;
+        
+        const stepImages = images.filter(image => image.stepId === currentStepId);
+
+        // Mark images as used
+        stepImages.forEach(img => usedImageUrls.add(img.url));
 
         return (
           <div key={`step-${index}`} className="space-y-2">
             <ReactMarkdown>{section}</ReactMarkdown>
 
-            {hasImages && (
+            {stepImages.length > 0 && (
               <div className="mt-2 mb-4">
-                <div
-                  className={`grid ${stepImages.length > 1 ? "grid-cols-2" : "grid-cols-1"} gap-3`}
-                >
+                <div className={`grid grid-cols-1 gap-3`}>
                   {stepImages.map((image, imgIndex) => (
                     <ImageComponent
                       key={`step-${index}-img-${imgIndex}`}
@@ -189,17 +133,13 @@ export const StepImageRenderer: React.FC<StepImageRendererProps> = ({
 
       {/* Show remaining images that weren't associated with specific steps */}
       {(() => {
-        const usedImages = sections.flatMap((section, index) =>
-          findImagesForStep(section, index),
-        );
-
         const unusedImages = images.filter(
-          (image) => !usedImages.some((usedImg) => usedImg.url === image.url),
+          (image) => !usedImageUrls.has(image.url)
         );
 
         if (unusedImages.length > 0) {
           return (
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 space-y-3 pt-4 border-t">
               <div className="text-xs text-muted-foreground font-medium">
                 Additional related images:
               </div>
