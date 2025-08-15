@@ -101,22 +101,24 @@ export const StepImageRenderer: React.FC<StepImageRendererProps> = ({
           // Add images as markdown after this step
           matchingImages.forEach((img) => {
             processedLines.push("");
-            processedLines.push(`<div class="mt-2 mb-4 ml-6">`);
-            processedLines.push(`<div class="grid grid-cols-1 gap-3">`);
             processedLines.push(
-              `<div class="rounded-md overflow-hidden border border-muted bg-white shadow-sm">`,
+              `<div style="margin: 0.75rem 0 1rem 1.5rem; max-width: 350px; width: 100%;">`,
             );
-            processedLines.push(`<div class="relative pb-[70%]">`);
             processedLines.push(
-              `<img src="${img.url}" alt="${img.alt || `Step ${stepCounter} image`}" class="absolute inset-0 w-full h-full object-contain p-1" loading="lazy" style="background-color: white; max-width: 100%; max-height: 100%;" />`,
+              `<div style="border-radius: 0.5rem; overflow: hidden; border: 1px solid #d1d5db; background-color: white; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); transition: box-shadow 0.2s;">`,
+            );
+            processedLines.push(
+              `<div style="position: relative; width: 100%; height: 200px;">`,
+            );
+            processedLines.push(
+              `<img src="${img.url}" alt="${img.alt || `Step ${stepCounter} image`}" style="width: 100%; height: 100%; object-fit: contain; background-color: white; display: block; opacity: 1; transition: opacity 0.3s;" loading="lazy" />`,
             );
             processedLines.push(`</div>`);
             if (img.alt) {
               processedLines.push(
-                `<div class="px-2 py-1 text-xs text-center text-muted-foreground truncate">${img.alt}</div>`,
+                `<div style="padding: 0.5rem; font-size: 0.75rem; text-align: center; color: #6b7280; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">${img.alt}</div>`,
               );
             }
-            processedLines.push(`</div>`);
             processedLines.push(`</div>`);
             processedLines.push(`</div>`);
           });
@@ -133,10 +135,43 @@ export const StepImageRenderer: React.FC<StepImageRendererProps> = ({
       <ReactMarkdown
         rehypePlugins={[rehypeRaw]}
         components={{
-          // Allow HTML elements to render
+          // Allow HTML elements to render properly with consistent styling
           div: ({ node, ...props }) => <div {...props} />,
           img: ({ node, ...props }) => <img {...props} />,
+          // Ensure proper list styling that matches the design
+          ol: ({ node, ...props }) => (
+            <ol
+              style={{
+                marginLeft: "0",
+                paddingLeft: "1.25rem",
+                marginBottom: "1rem",
+                listStyleType: "decimal",
+              }}
+              {...props}
+            />
+          ),
+          ul: ({ node, ...props }) => (
+            <ul
+              style={{
+                marginLeft: "0",
+                paddingLeft: "1.25rem",
+                marginBottom: "1rem",
+                listStyleType: "disc",
+              }}
+              {...props}
+            />
+          ),
+          li: ({ node, ...props }) => (
+            <li
+              style={{
+                marginBottom: "0.75rem",
+                lineHeight: "1.6",
+              }}
+              {...props}
+            />
+          ),
         }}
+        className="prose prose-sm max-w-none text-current"
       >
         {processedContent}
       </ReactMarkdown>
