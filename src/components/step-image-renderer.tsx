@@ -2,6 +2,7 @@
 
 import React from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 
 export interface MessageImage {
   url: string;
@@ -16,7 +17,13 @@ interface StepImageRendererProps {
 }
 
 // Helper function to render an individual image
-const ImageComponent = ({ image, index }: { image: MessageImage; index: any }) => {
+const ImageComponent = ({
+  image,
+  index,
+}: {
+  image: MessageImage;
+  index: any;
+}) => {
   return (
     <div
       key={index}
@@ -58,82 +65,81 @@ const ImageComponent = ({ image, index }: { image: MessageImage; index: any }) =
   );
 };
 
-
 export const StepImageRenderer: React.FC<StepImageRendererProps> = ({
   content,
   images = [],
 }) => {
-  const usedImageUrls = new Set<string>();
+  // Process content to inject images directly at the right positions
+  const processedContent = React.useMemo(() => {
+    if (images.length === 0) return content;
 
-  const CustomListItem = (props: any) => {
-    const { node, ordered, index, children } = props;
-    // For ordered lists, `node.start` gives the number of the first item.
-    // The `index` prop gives the zero-based index of the current item in the list.
-    const stepNumber = ordered ? (node.start ?? 1) + index : index + 1;
-    const currentStepId = `step-${stepNumber}`;
-    const stepImages = images.filter((image) => image.stepId === currentStepId);
+    console.log("Processing content with images:", {
+      totalImages: images.length,
+      stepIds: images.map((img) => img.stepId).filter(Boolean),
+    });
 
-    // Mark images as used
-    stepImages.forEach((img) => usedImageUrls.add(img.url));
+    // Split content into lines
+    const lines = content.split("\n");
+    const processedLines: string[] = [];
+    let stepCounter = 1;
 
-    return (
-      <li className="list-item">
-        <div>{children}</div>
-        {stepImages.length > 0 && (
-          <div className="mt-2 mb-4 ml-6">
-            <div className={`grid grid-cols-1 gap-3`}>
-              {stepImages.map((image, imgIndex) => (
-                <ImageComponent
-                  key={`step-${index}-img-${imgIndex}`}
-                  image={image}
-                  index={`step-${index}-img-${imgIndex}`}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </li>
-    );
-  };
-  
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      processedLines.push(line);
+
+      // Check if this line starts a numbered list item
+      const listItemMatch = line.match(/^(\d+)\.\s+/);
+      if (listItemMatch) {
+        const stepId = `step-${stepCounter}`;
+        const matchingImages = images.filter((img) => img.stepId === stepId);
+
+        if (matchingImages.length > 0) {
+          console.log(
+            `Injecting ${matchingImages.length} images after step ${stepCounter}`,
+          );
+
+          // Add images as markdown after this step
+          matchingImages.forEach((img) => {
+            processedLines.push("");
+            processedLines.push(`<div class="mt-2 mb-4 ml-6">`);
+            processedLines.push(`<div class="grid grid-cols-1 gap-3">`);
+            processedLines.push(
+              `<div class="rounded-md overflow-hidden border border-muted bg-white shadow-sm">`,
+            );
+            processedLines.push(`<div class="relative pb-[70%]">`);
+            processedLines.push(
+              `<img src="${img.url}" alt="${img.alt || `Step ${stepCounter} image`}" class="absolute inset-0 w-full h-full object-contain p-1" loading="lazy" style="background-color: white; max-width: 100%; max-height: 100%;" />`,
+            );
+            processedLines.push(`</div>`);
+            if (img.alt) {
+              processedLines.push(
+                `<div class="px-2 py-1 text-xs text-center text-muted-foreground truncate">${img.alt}</div>`,
+              );
+            }
+            processedLines.push(`</div>`);
+            processedLines.push(`</div>`);
+            processedLines.push(`</div>`);
+          });
+        }
+        stepCounter++;
+      }
+    }
+
+    return processedLines.join("\n");
+  }, [content, images]);
+
   return (
     <>
       <ReactMarkdown
+        rehypePlugins={[rehypeRaw]}
         components={{
-          li: CustomListItem,
+          // Allow HTML elements to render
+          div: ({ node, ...props }) => <div {...props} />,
+          img: ({ node, ...props }) => <img {...props} />,
         }}
       >
-        {content}
+        {processedContent}
       </ReactMarkdown>
-
-      {/* Show remaining images that weren't associated with specific steps */}
-      {(() => {
-        const unusedImages = images.filter(
-          (image) => !usedImageUrls.has(image.url)
-        );
-
-        if (unusedImages.length > 0) {
-          return (
-            <div className="mt-4 space-y-3 pt-4 border-t">
-              <div className="text-xs text-muted-foreground font-medium">
-                Additional related images:
-              </div>
-              <div
-                className={`grid ${unusedImages.length > 1 ? "grid-cols-2" : "grid-cols-1"} gap-3`}
-              >
-                {unusedImages.map((image, index) => (
-                  <ImageComponent
-                    key={`unused-${index}`}
-                    image={image}
-                    index={`unused-${index}`}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        }
-        return null;
-      })()}
     </>
   );
 };

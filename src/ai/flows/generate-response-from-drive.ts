@@ -76,35 +76,88 @@ export async function generateResponseFromDrive(
     const result = await generateResponseFromDriveFlow(enhancedInput);
     console.log("AI raw response:", result.response);
 
-    const stepImageRegex = /\[image-step(\d+):\s*([^\]]+?)\s*\(ID:\s*([^)]+)\)\]/gi;
+    const stepImageRegex =
+        /\[image-step(\d+):\s*([^\]]+?)\s*\(ID:\s*([^)]+)\)\]/gi;
     let match;
-    const requestedStepImages: Array<{ stepNum: string; imageName: string; fileId: string }> = [];
+    const requestedStepImages: Array<{
+        stepNum: string;
+        imageName: string;
+        fileId: string;
+    }> = [];
 
+    console.log("Scanning response for step image references...");
     while ((match = stepImageRegex.exec(result.response)) !== null) {
         const stepNum = match[1]?.trim();
         const imageName = match[2]?.trim();
         const fileId = match[3]?.trim();
         if (stepNum && imageName && fileId) {
-            console.log(`Found step ${stepNum} image reference: ${imageName} (ID: ${fileId})`);
+            console.log(
+                `Found step ${stepNum} image reference: ${imageName} (ID: ${fileId})`,
+            );
             requestedStepImages.push({ stepNum, imageName, fileId });
         }
     }
 
+    console.log(`Total step images found: ${requestedStepImages.length}`);
     const cleanedResponse = result.response.replace(stepImageRegex, "").trim();
-    console.log("Cleaned response (after removing image tags):", cleanedResponse);
+    console.log(
+        "Cleaned response (after removing image tags):",
+        cleanedResponse,
+    );
 
     if (requestedStepImages.length > 0) {
-        const imageUrls = requestedStepImages.map(({ stepNum, fileId }) => {
-            const image = knowledgeImages.find(img => img.id === fileId);
-            if (image) {
-                return {
-                    id: image.id,
-                    url: image.contentLink,
-                    stepId: `step-${stepNum}`,
-                };
-            }
-            return null;
-        }).filter(Boolean) as Array<{ id: string; url: string; stepId: string }>;
+        console.log("Processing step images for response...");
+
+        // Deduplicate images by stepId + fileId combination
+        const uniqueStepImages = requestedStepImages.reduce(
+            (acc, current) => {
+                const key = `${current.stepNum}-${current.fileId}`;
+                if (
+                    !acc.find(
+                        (item) => `${item.stepNum}-${item.fileId}` === key,
+                    )
+                ) {
+                    acc.push(current);
+                }
+                return acc;
+            },
+            [] as Array<{ stepNum: string; imageName: string; fileId: string }>,
+        );
+
+        console.log(
+            `Deduplicated: ${requestedStepImages.length} -> ${uniqueStepImages.length} images`,
+        );
+
+        const imageUrls = uniqueStepImages
+            .map(({ stepNum, fileId }) => {
+                const image = knowledgeImages.find((img) => img.id === fileId);
+                if (image) {
+                    const stepId = `step-${stepNum}`;
+                    console.log(
+                        `Mapping step ${stepNum} to stepId: ${stepId}, fileId: ${fileId}`,
+                    );
+                    return {
+                        id: image.id,
+                        url: image.contentLink,
+                        stepId,
+                    };
+                } else {
+                    console.log(
+                        `Warning: Image not found for fileId: ${fileId} (step ${stepNum})`,
+                    );
+                }
+                return null;
+            })
+            .filter(Boolean) as Array<{
+            id: string;
+            url: string;
+            stepId: string;
+        }>;
+
+        console.log(
+            `Final image URLs with stepIds:`,
+            imageUrls.map((img) => ({ stepId: img.stepId, id: img.id })),
+        );
 
         return {
             response: cleanedResponse,

@@ -49,6 +49,12 @@ export function ChatMessage({ message }: { message: Message }) {
         {...messageProps}
       >
         <div className="text-sm prose prose-sm max-w-none text-current prose-p:my-0 prose-ul:my-2 prose-ol:my-2">
+          {message.images &&
+            console.log("ChatMessage with images:", {
+              messageId: message.id,
+              imageCount: message.images.length,
+              stepIds: message.images.map((img) => img.stepId).filter(Boolean),
+            })}
           <StepImageRenderer
             content={message.content}
             images={message.images}

@@ -25,3 +25,6 @@
 - Use minimalist, clear icons for common actions like sending messages, adding attachments, and muting notifications.
 - Employ a clean and intuitive layout with a clear separation between the message input area, the chat display, and user controls.
 - Incorporate subtle animations for new message notifications and message delivery confirmations to enhance user engagement.
+
+## Current Issues:
+- Images displayed in the end of the chat response. The image should be corresponding to each step in the chat response. Like step 1, step 2, etc. below it should be the image related to that step.
